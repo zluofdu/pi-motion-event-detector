@@ -1,7 +1,7 @@
 import unittest
 import os
 import datetime
-from src.database import MotionEventDao
+from src.motion_event_dao import MotionEventDao
 from src.models.motion_event import MotionEvent, Base
 from sqlalchemy import create_engine
 
@@ -30,7 +30,7 @@ class TestMotionEventDao(unittest.TestCase):
         start_time = datetime.datetime(2025, 8, 11, 20, 0, 0)  # 8:00 PM
         stop_time = datetime.datetime(2025, 8, 11, 20, 0, 10)  # 10 seconds later
         event = MotionEvent(
-            description="Test motion event",
+            device_id="test_device_1",
             start_timestamp=start_time,
             stop_timestamp=stop_time
         )
@@ -41,7 +41,7 @@ class TestMotionEventDao(unittest.TestCase):
         # Assert
         saved_event = self.dao.get(1)  # First event should have id=1
         self.assertIsNotNone(saved_event)
-        self.assertEqual(saved_event.description, "Test motion event")
+        self.assertEqual(saved_event.device_id, "test_device_1")
         self.assertEqual(saved_event.start_timestamp, start_time)
         self.assertEqual(saved_event.stop_timestamp, stop_time)
 
@@ -57,17 +57,17 @@ class TestMotionEventDao(unittest.TestCase):
         # Create events at different times
         events = [
             MotionEvent(
-                description="Event 1",
+                device_id="test_device_1",
                 start_timestamp=datetime.datetime(2025, 8, 11, 19, 0),  # 7:00 PM
                 stop_timestamp=datetime.datetime(2025, 8, 11, 19, 1)
             ),
             MotionEvent(
-                description="Event 2",
+                device_id="test_device_1",
                 start_timestamp=datetime.datetime(2025, 8, 11, 20, 0),  # 8:00 PM
                 stop_timestamp=datetime.datetime(2025, 8, 11, 20, 1)
             ),
             MotionEvent(
-                description="Event 3",
+                device_id="test_device_1",
                 start_timestamp=datetime.datetime(2025, 8, 11, 21, 0),  # 9:00 PM
                 stop_timestamp=datetime.datetime(2025, 8, 11, 21, 1)
             )
@@ -83,15 +83,18 @@ class TestMotionEventDao(unittest.TestCase):
 
         # Assert
         self.assertEqual(len(filtered_events), 1)
-        self.assertEqual(filtered_events[0].description, "Event 2")
+        # Check for the event in the expected time window
+        event = filtered_events[0]
+        self.assertEqual(event.device_id, "test_device_1")
+        self.assertEqual(event.start_timestamp.hour, 20)  # 8:00 PM
 
     def test_list_all_events(self):
         # Arrange
         events = [
-            MotionEvent(description="Event 1", 
+            MotionEvent(device_id="test_device_1",
                        start_timestamp=datetime.datetime.now(),
                        stop_timestamp=datetime.datetime.now()),
-            MotionEvent(description="Event 2",
+            MotionEvent(device_id="test_device_1",
                        start_timestamp=datetime.datetime.now(),
                        stop_timestamp=datetime.datetime.now())
         ]
@@ -103,8 +106,9 @@ class TestMotionEventDao(unittest.TestCase):
 
         # Assert
         self.assertEqual(len(all_events), 2)
-        self.assertEqual(set(e.description for e in all_events), 
-                        set(["Event 1", "Event 2"]))
+        # Verify all events have the correct device ID
+        for event in all_events:
+            self.assertEqual(event.device_id, "test_device_1")
 
 if __name__ == '__main__':
     unittest.main()

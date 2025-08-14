@@ -1,7 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from src.models.motion_event import MotionEvent, Base
-import datetime
 
 class MotionEventDao:
     def __init__(self, db_url='sqlite:///motion_events.db'):

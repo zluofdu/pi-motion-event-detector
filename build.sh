@@ -19,9 +19,9 @@ fi
 echo "📦 Installing dependencies..."
 pip install -r requirements.txt
 
-# Run tests with coverage
+# Run tests with coverage and verbose output
 echo "🧪 Running tests..."
-PYTHONPATH=. python -m pytest tests/ --cov=src --cov-report=term-missing
+PYTHONPATH=. python -m pytest tests/ -v --cov=src --cov-report=term-missing
 
 # Check the test result
 if [ $? -eq 0 ]; then

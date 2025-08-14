@@ -1,26 +1,51 @@
+import argparse
 from gpiozero import MotionSensor
-from detector import MotionDetector
-from database import MotionEventDao
+from src.motion_detector import MotionDetector
+from src.motion_event_dao import MotionEventDao
 import time
 
-def main():
-    # Initialize components
+class MotionSystem:
+    def __init__(self, motion_sensor: MotionSensor, database: MotionEventDao, detector: MotionDetector):
+        self.motion_sensor = motion_sensor
+        self.database = database
+        self.detector = detector
+
+    def run(self, duration: int):
+        print("Starting motion detection system...")
+        print("Waiting for sensor to settle...")
+        try:
+            time.sleep(2)  # Wait for the sensor to stabilize
+
+            if duration > 0:
+                # Start monitoring and set up duration timer
+                self.detector.start_monitoring()
+                try:
+                    time.sleep(duration)
+                finally:
+                    # Always ensure we stop monitoring even if interrupted
+                    self.detector.stop_monitoring()
+            else:
+                # Run indefinitely until interrupted
+                self.detector.start_monitoring()
+        except KeyboardInterrupt:
+            print("\nMotion detection system stopped by user.")
+            # Only call stop_monitoring if we haven't already
+            if duration <= 0:
+                self.detector.stop_monitoring()
+
+def create_system():
     motion_sensor = MotionSensor(4)
     database = MotionEventDao()
     detector = MotionDetector(motion_sensor, database)
+    return MotionSystem(motion_sensor, database, detector)
 
-    print("Starting motion detection system...")
-    print("Waiting for sensor to settle...")
-    time.sleep(2)  # Wait for the sensor to stabilize
+def main():
+    parser = argparse.ArgumentParser(description='Motion detection system')
+    parser.add_argument('duration', type=int, help='Duration to run in seconds')
+    args = parser.parse_args()
 
-    try:
-        for _ in range(2):  # Run 2 iterations for testing
-            print("Monitoring for motion...")
-            detector.start_monitoring()
-            time.sleep(1)  # Adjust sleep time as necessary
-
-    except KeyboardInterrupt:
-        print("\nMotion detection system stopped by user.")
+    system = create_system()
+    system.run(args.duration)
 
 if __name__ == "__main__":
     main()
