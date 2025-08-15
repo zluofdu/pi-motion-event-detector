@@ -6,7 +6,7 @@ class MotionDetector:
         self.sensor = sensor
         self.database = database
         # Generate device ID from the sensor's pin information
-        pin_name = sensor.pin.name
+        pin_name = str(sensor.pin)
         self.device_id = f"pir_sensor_{pin_name}"
         self._running = False
 

@@ -9,7 +9,7 @@ def mock_components():
     sensor = Mock()
     # Setup the pin mock to simulate GPIO pin
     sensor.pin = Mock()
-    sensor.pin.name = "GPIO4"
+    sensor.pin.__str__ = Mock(return_value="GPIO4")
     
     database = Mock()
     return sensor, database
