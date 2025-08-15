@@ -1,8 +1,9 @@
 import argparse
+import threading
+import time
 from gpiozero import MotionSensor
 from src.motion_detector import MotionDetector
 from src.motion_event_dao import MotionEventDao
-import time
 
 class MotionSystem:
     def __init__(self, motion_sensor: MotionSensor, database: MotionEventDao, detector: MotionDetector):
@@ -14,24 +15,30 @@ class MotionSystem:
         print("Starting motion detection system...")
         print("Waiting for sensor to settle...")
         try:
-            time.sleep(2)  # Wait for the sensor to stabilize
+            # Let the motion detector handle sensor stabilization
+            self.detector.wait_for_sensor_ready()
 
             if duration > 0:
-                # Start monitoring and set up duration timer
-                self.detector.start_monitoring()
-                try:
-                    time.sleep(duration)
-                finally:
-                    # Always ensure we stop monitoring even if interrupted
-                    self.detector.stop_monitoring()
+                # Start monitoring in a separate thread so we can control timing
+                monitor_thread = threading.Thread(target=self.detector.start_monitoring)
+                monitor_thread.daemon = True
+                monitor_thread.start()
+                
+                # Wait for the specified duration
+                time.sleep(duration)
+                
+                # Stop monitoring
+                print(f"\nMotion detection completed after {duration} seconds.")
+                self.detector.stop_monitoring()
+                
+                # Give the thread a moment to finish
+                time.sleep(0.5)
             else:
                 # Run indefinitely until interrupted
                 self.detector.start_monitoring()
         except KeyboardInterrupt:
             print("\nMotion detection system stopped by user.")
-            # Only call stop_monitoring if we haven't already
-            if duration <= 0:
-                self.detector.stop_monitoring()
+            self.detector.stop_monitoring()
 
 def create_system():
     motion_sensor = MotionSensor(4)

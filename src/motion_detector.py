@@ -1,4 +1,5 @@
 import datetime
+import time
 from src.models.motion_event import MotionEvent
 
 class MotionDetector:
@@ -10,6 +11,32 @@ class MotionDetector:
         self.device_id = f"pir_sensor_{pin_name}"
         self._running = False
 
+    def wait_for_sensor_ready(self):
+        """Wait for the sensor to stabilize and be ready for monitoring."""
+        print("Checking sensor status...")
+        start_time = time.time()
+        stable_count = 0
+        required_stable_readings = 5  # Need 5 consecutive stable readings
+        
+        while stable_count < required_stable_readings:
+            current_state = self.sensor.value
+            time.sleep(0.1)  # Small delay between readings
+            next_state = self.sensor.value
+            
+            if current_state == next_state:
+                stable_count += 1
+                print(f"Sensor stable: {stable_count}/{required_stable_readings}")
+            else:
+                stable_count = 0  # Reset if state changes
+                print("Sensor state changed, waiting for stability...")
+            
+            # Safety timeout to prevent infinite loop
+            if time.time() - start_time > 10:
+                print("Sensor stabilization timeout reached, proceeding anyway...")
+                break
+        
+        print("Sensor is ready!")
+
     def start_monitoring(self):
         """Start monitoring for motion events in a loop.
         The loop can be stopped by calling stop_monitoring()."""
@@ -18,8 +45,6 @@ class MotionDetector:
         try:
             while self._running:
                 self.capture_motion_event()
-        except KeyboardInterrupt:
-            self.stop_monitoring()
         except Exception as e:
             print(f"Error during motion detection: {e}")
             self.stop_monitoring()

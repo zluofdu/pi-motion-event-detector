@@ -28,6 +28,47 @@ def test_detector_initialization(mock_components):
     assert detector.device_id == "pir_sensor_GPIO4"
     assert detector._running is False
 
+def test_wait_for_sensor_ready(detector, mock_components):
+    sensor, database = mock_components
+    
+    # Mock sensor values to be stable (same value consistently)
+    sensor.value = 0  # Sensor shows no motion initially
+    
+    with patch('time.sleep') as mock_sleep, \
+         patch('time.time') as mock_time, \
+         patch('builtins.print') as mock_print:
+        
+        # Mock time to avoid actual timeout
+        mock_time.side_effect = [0, 1, 2, 3, 4, 5]  # Simulate time progression
+        
+        detector.wait_for_sensor_ready()
+        
+        # Should have called sleep for small delays between readings
+        assert mock_sleep.call_count >= 5  # At least 5 readings
+        mock_sleep.assert_called_with(0.1)
+        
+        # Should print status messages
+        mock_print.assert_any_call("Checking sensor status...")
+        mock_print.assert_any_call("Sensor is ready!")
+
+def test_wait_for_sensor_ready_with_timeout(detector, mock_components):
+    sensor, database = mock_components
+    
+    # Mock sensor values to be unstable (changing values)
+    sensor.value = Mock(side_effect=[0, 1, 0, 1, 0, 1, 0])  # Alternating values
+    
+    with patch('time.sleep') as mock_sleep, \
+         patch('time.time') as mock_time, \
+         patch('builtins.print') as mock_print:
+        
+        # Mock time to trigger timeout after 11 seconds
+        mock_time.side_effect = [0, 5, 11]  # Start, during, timeout
+        
+        detector.wait_for_sensor_ready()
+        
+        # Should print timeout message
+        mock_print.assert_any_call("Sensor stabilization timeout reached, proceeding anyway...")
+
 def test_start_and_stop_monitoring(detector, mock_components):
     sensor, database = mock_components
     

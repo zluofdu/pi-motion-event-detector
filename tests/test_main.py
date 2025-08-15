@@ -27,17 +27,18 @@ def test_motion_system_run_with_duration(motion_system, mock_components):
     with patch('time.sleep') as mock_sleep:
         motion_system.run(3)  # Run for 3 seconds
         
-        # Should start monitoring once and sleep for the duration
+        # Should call wait_for_sensor_ready and then start monitoring
+        detector.wait_for_sensor_ready.assert_called_once()
         detector.start_monitoring.assert_called_once()
         detector.stop_monitoring.assert_called_once()
-        mock_sleep.assert_any_call(2)  # Initial sensor settling time
         mock_sleep.assert_any_call(3)  # Duration sleep
+        mock_sleep.assert_any_call(0.5)  # Final cleanup sleep
 
 def test_motion_system_run_keyboard_interrupt(motion_system, mock_components):
     motion_sensor, database, detector = mock_components
     with patch('time.sleep') as mock_sleep:
-        # First sleep call is for sensor settling (2s), second is for duration
-        mock_sleep.side_effect = [None, KeyboardInterrupt()]
+        # KeyboardInterrupt during duration sleep (first sleep call)
+        mock_sleep.side_effect = [KeyboardInterrupt()]
         
         # Track call order using a list
         calls = []
@@ -51,12 +52,12 @@ def test_motion_system_run_keyboard_interrupt(motion_system, mock_components):
         
         motion_system.run(3)  # Run for 3 seconds
         
-        # Verify the sequence of operations
-        assert mock_sleep.call_count == 2, "Should call sleep exactly twice"
-        # Check the actual arguments of each call
-        assert len(mock_sleep.call_args_list) == 2, "Should have 2 calls recorded"
-        assert mock_sleep.call_args_list[0].args == (2,), "First call should be settling time (2s)"
-        assert mock_sleep.call_args_list[1].args == (3,), "Second call should be duration (3s)"
+        # Verify KeyboardInterrupt was handled
+        assert mock_sleep.call_count == 1, "Should call sleep once before interrupt"
+        assert mock_sleep.call_args_list[0].args == (3,), "First call should be duration (3s)"
+        
+        # Should call wait_for_sensor_ready
+        detector.wait_for_sensor_ready.assert_called_once()
         assert detector.start_monitoring.call_count == 1, "Should start monitoring exactly once"
         assert detector.stop_monitoring.call_count == 1, "Should stop monitoring exactly once"
         # Verify call order
