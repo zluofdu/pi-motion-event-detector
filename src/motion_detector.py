@@ -1,6 +1,7 @@
 import datetime
 import time
 from src.models.motion_event import MotionEvent
+from src.timezone_utils import now_pst
 
 class MotionDetector:
     def __init__(self, sensor, database):
@@ -61,15 +62,15 @@ class MotionDetector:
         if not self._running:  # Check if we should stop
             return
             
-        start_timestamp = datetime.datetime.now()
-        print(f"Motion detected at {start_timestamp}")
+        start_timestamp = now_pst()
+        print(f"Motion detected at {start_timestamp.strftime('%Y-%m-%d %H:%M:%S %Z')}")
         
         self.sensor.wait_for_no_motion()
         if not self._running:  # Check if we should stop
             return
             
-        stop_timestamp = datetime.datetime.now()
-        print(f"Motion stopped at {stop_timestamp}")
+        stop_timestamp = now_pst()
+        print(f"Motion stopped at {stop_timestamp.strftime('%Y-%m-%d %H:%M:%S %Z')}")
         
         event = MotionEvent(
             device_id=self.device_id,

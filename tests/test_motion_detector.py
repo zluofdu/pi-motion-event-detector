@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 import datetime
 from src.motion_detector import MotionDetector
 from src.models.motion_event import MotionEvent
+from src.timezone_utils import now_pst, pst_from_naive
 
 @pytest.fixture
 def mock_components():
@@ -140,3 +141,109 @@ def test_error_handling(detector, mock_components):
     
     assert detector._running is False  # Should clean up running state
     database.add.assert_not_called()  # Should not have saved any events
+
+def test_capture_motion_event_pst_timestamps(detector, mock_components):
+    """Test that motion events are captured with PST timestamps."""
+    sensor, database = mock_components
+    
+    with patch('src.motion_detector.now_pst') as mock_now_pst:
+        # Setup mock PST times
+        start_time_pst = pst_from_naive(datetime.datetime(2025, 8, 14, 2, 30, 0))
+        stop_time_pst = pst_from_naive(datetime.datetime(2025, 8, 14, 2, 30, 10))
+        mock_now_pst.side_effect = [start_time_pst, stop_time_pst]
+        
+        # Set detector to running state
+        detector._running = True
+        
+        detector.capture_motion_event()
+        
+        # Verify PST times were used
+        mock_now_pst.assert_called()
+        assert mock_now_pst.call_count == 2
+        
+        # Verify event was created with PST timestamps
+        database.add.assert_called_once()
+        event = database.add.call_args[0][0]
+        assert event.device_id == "pir_sensor_GPIO4"
+        assert event.start_timestamp == start_time_pst
+        assert event.stop_timestamp == stop_time_pst
+        
+        # Verify timestamps are timezone-aware
+        assert event.start_timestamp.tzinfo is not None
+        assert event.stop_timestamp.tzinfo is not None
+        assert event.start_timestamp.tzinfo.zone == 'US/Pacific'
+
+def test_capture_motion_event_pst_logging(detector, mock_components):
+    """Test that motion detection logging displays PST timezone."""
+    sensor, database = mock_components
+    
+    with patch('src.motion_detector.now_pst') as mock_now_pst, \
+         patch('builtins.print') as mock_print:
+        
+        # Setup mock PST times
+        start_time_pst = pst_from_naive(datetime.datetime(2025, 8, 14, 15, 30, 45))
+        stop_time_pst = pst_from_naive(datetime.datetime(2025, 8, 14, 15, 30, 55))
+        mock_now_pst.side_effect = [start_time_pst, stop_time_pst]
+        
+        detector._running = True
+        detector.capture_motion_event()
+        
+        # Verify PST timezone is displayed in logs
+        mock_print.assert_any_call("Motion detected at 2025-08-14 15:30:45 PDT")
+        mock_print.assert_any_call("Motion stopped at 2025-08-14 15:30:55 PDT")
+
+def test_capture_motion_event_interrupted_during_start(detector, mock_components):
+    """Test handling interruption during motion start detection."""
+    sensor, database = mock_components
+    
+    # Set running to False after wait_for_motion (simulating stop)
+    def stop_after_motion_start(*args):
+        detector._running = False
+    
+    sensor.wait_for_motion.side_effect = stop_after_motion_start
+    
+    detector._running = True
+    detector.capture_motion_event()
+    
+    # Should return early without recording event
+    sensor.wait_for_no_motion.assert_not_called()
+    database.add.assert_not_called()
+
+def test_capture_motion_event_interrupted_during_stop(detector, mock_components):
+    """Test handling interruption during motion stop detection."""
+    sensor, database = mock_components
+    
+    with patch('src.motion_detector.now_pst') as mock_now_pst:
+        # Setup first timestamp
+        start_time_pst = pst_from_naive(datetime.datetime(2025, 8, 14, 2, 30, 0))
+        mock_now_pst.return_value = start_time_pst
+        
+        # Set running to False after wait_for_no_motion (simulating stop)
+        def stop_after_motion_end(*args):
+            detector._running = False
+        
+        sensor.wait_for_no_motion.side_effect = stop_after_motion_end
+        
+        detector._running = True
+        detector.capture_motion_event()
+        
+        # Should get first timestamp but return early before recording
+        sensor.wait_for_motion.assert_called_once()
+        sensor.wait_for_no_motion.assert_called_once()
+        database.add.assert_not_called()
+
+def test_device_id_generation_from_pin(mock_components):
+    """Test that device ID is properly generated from GPIO pin."""
+    sensor, database = mock_components
+    
+    # Test different pin configurations
+    test_cases = [
+        ("GPIO4", "pir_sensor_GPIO4"),
+        ("4", "pir_sensor_4"),
+        ("BOARD7", "pir_sensor_BOARD7"),
+    ]
+    
+    for pin_str, expected_device_id in test_cases:
+        sensor.pin.__str__.return_value = pin_str
+        detector = MotionDetector(sensor, database)
+        assert detector.device_id == expected_device_id
