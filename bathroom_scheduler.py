@@ -26,6 +26,15 @@ class BathroomHealthScheduler:
         """Initialize the bathroom health monitoring scheduler."""
         self.config = Config()
         
+        # Validate email configuration
+        try:
+            Config.validate_email_config()
+            print("✅ Email configuration validated")
+        except ValueError as e:
+            print(f"❌ Email Configuration Error:")
+            print(f"{e}")
+            sys.exit(1)
+        
         # Email configuration (you'll need to set these in config.py)
         self.reporter = BathroomReporter(
             smtp_server=getattr(self.config, 'SMTP_SERVER', 'smtp.gmail.com'),
@@ -36,8 +45,8 @@ class BathroomHealthScheduler:
         
         self.detector = BathroomVisitDetector()
         
-        # Target email for reports
-        self.target_email = getattr(self.config, 'REPORT_EMAIL', '')
+        # Target emails for reports (always expect a list)
+        self.target_emails = getattr(self.config, 'REPORT_EMAIL', [])
     
     def job1_motion_detection(self):
         """
@@ -97,16 +106,26 @@ class BathroomHealthScheduler:
         # Generate report data
         report_data = self.reporter.generate_report(visits, today_pst)
         
-        # Send email report
-        if self.target_email:
-            print(f"Sending report to {self.target_email}...")
-            success = self.reporter.send_report(self.target_email, report_data, today_pst)
-            if success:
-                print("✅ Email report sent successfully")
-            else:
-                print("❌ Failed to send email report")
+        # Send email reports to all recipients
+        if self.target_emails:
+            print(f"Sending reports to {len(self.target_emails)} recipient(s): {', '.join(self.target_emails)}")
+            
+            successful_sends = 0
+            failed_sends = 0
+            
+            for email in self.target_emails:
+                print(f"📧 Sending to {email}...")
+                success = self.reporter.send_report(email, report_data, today_pst)
+                if success:
+                    print(f"✅ Successfully sent to {email}")
+                    successful_sends += 1
+                else:
+                    print(f"❌ Failed to send to {email}")
+                    failed_sends += 1
+            
+            print(f"📊 Email Summary: {successful_sends} successful, {failed_sends} failed")
         else:
-            print("⚠️  No target email configured - skipping email")
+            print("⚠️  No target emails configured - skipping email")
         
         # Print summary to console
         self._print_summary(report_data)

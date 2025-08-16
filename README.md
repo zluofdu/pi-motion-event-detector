@@ -75,7 +75,7 @@ git clone https://github.com/zluofdu/pi-motion-event-detector.git
 cd motion-event
 
 # Install system dependencies
-sudo apt update && sudo apt install -y python3-matplotlib python3-pip
+sudo apt update && sudo apt install -y python3-pip python3-dotenv
 
 # Install Python dependencies
 pip install pytz
@@ -84,22 +84,37 @@ pip install pytz
 pip install -e .
 ```
 
-### 3. Configuration
-Edit `src/config.py` with your settings:
-```python
-class Config:
-    # Email settings
-    SMTP_SERVER = 'smtp.gmail.com'
-    EMAIL_ADDRESS = 'your_email@gmail.com'
-    EMAIL_PASSWORD = 'your_app_password'  # Use app-specific password
-    REPORT_EMAIL = 'recipient@gmail.com'
-    
-    # Timezone (PST/PDT)
-    TIMEZONE = 'US/Pacific'
-    
-    # Optional: Adjust timing and clustering
-    CLUSTER_WINDOW_MINUTES = 5  # Group events within 5 minutes
-```
+### 3. Gmail Configuration
+
+1. **Enable Gmail App Passwords**:
+   - Go to [Google Account Security](https://myaccount.google.com/security)
+   - Enable 2-Factor Authentication (if not already enabled)
+   - Go to "App passwords" and generate one for "Mail"
+   - Copy the 16-character app password (format: `abcd efgh ijkl mnop`)
+
+2. **Create Environment Configuration** (Secure Method):
+   ```bash
+   # Copy the example environment file
+   cp .env.example .env
+   
+   # Edit your environment variables
+   nano .env
+   ```
+   
+   Update `.env` with your actual credentials:
+   ```bash
+   # Gmail Configuration
+   EMAIL_ADDRESS=your-email@gmail.com
+   EMAIL_PASSWORD=your-16-char-app-password
+   REPORT_EMAILS=recipient1@gmail.com,recipient2@gmail.com
+   ```
+   
+   **🔒 Security Note**: The `.env` file is automatically ignored by git and will never be committed to your repository, keeping your credentials safe.
+
+3. **Test Email Configuration**:
+   ```bash
+   python test_email.py
+   ```
 
 ### 4. Setup Automation
 ```bash

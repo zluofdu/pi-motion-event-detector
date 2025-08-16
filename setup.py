@@ -8,6 +8,7 @@ setup(
         "gpiozero>=1.6.0",
         "sqlalchemy>=2.0.0",
         "schedule>=1.2.0",
+        "python-dotenv>=1.0.0",
     ],
     python_requires=">=3.8",
     author="Zheng Luo",

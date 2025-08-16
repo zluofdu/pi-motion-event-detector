@@ -7,5 +7,5 @@ build>=1.0.0
 twine>=4.0.0
 
 # Additional dependencies for bathroom health monitoring
-matplotlib>=3.5.0
 pytz>=2023.3
+python-dotenv>=1.0.0

@@ -15,7 +15,7 @@ class TestBathroomHealthScheduler:
         config.SMTP_PORT = 587
         config.EMAIL_ADDRESS = 'test@example.com'
         config.EMAIL_PASSWORD = 'test_password'
-        config.REPORT_EMAIL = 'recipient@example.com'
+        config.REPORT_EMAIL = ['recipient@example.com']  # Should be a list
         return config
 
     @pytest.fixture
@@ -34,13 +34,13 @@ class TestBathroomHealthScheduler:
                     scheduler = BathroomHealthScheduler()
                     scheduler.reporter = mock_reporter
                     scheduler.detector = mock_detector
-                    scheduler.target_email = 'recipient@example.com'
+                    scheduler.target_emails = ['recipient@example.com']  # Should be a list
                     
                     return scheduler
 
     def test_initialization(self, scheduler, mock_config):
         """Test scheduler initialization."""
-        assert scheduler.target_email == 'recipient@example.com'
+        assert scheduler.target_emails == ['recipient@example.com']
         assert isinstance(scheduler.reporter, Mock)
         assert isinstance(scheduler.detector, Mock)
 
@@ -213,7 +213,7 @@ class TestBathroomHealthScheduler:
     @patch('bathroom_scheduler.pst_datetime_today')
     def test_job2_no_target_email(self, mock_pst_today, mock_now_pst, scheduler):
         """Test Job 2: No target email configured."""
-        scheduler.target_email = ''  # No email configured
+        scheduler.target_emails = []  # No email configured
         
         mock_now_pst.return_value.date.return_value = datetime.date(2025, 8, 14)
         mock_pst_today.side_effect = [Mock(), Mock()]
@@ -363,16 +363,15 @@ class TestSchedulerIntegration:
     def test_config_fallback_values(self, mock_getattr):
         """Test configuration fallback values."""
         # Mock getattr to return fallback values
-        fallback_values = {
-            ('SMTP_SERVER', 'smtp.gmail.com'): 'smtp.gmail.com',
-            ('SMTP_PORT', 587): 587,
-            ('EMAIL_ADDRESS', ''): 'fallback@test.com',
-            ('EMAIL_PASSWORD', ''): 'fallback_password',
-            ('REPORT_EMAIL', ''): 'report@test.com'
-        }
-        
         def getattr_side_effect(obj, attr, default):
-            return fallback_values.get((attr, default), default)
+            fallback_values = {
+                'SMTP_SERVER': 'smtp.gmail.com',
+                'SMTP_PORT': 587,
+                'EMAIL_ADDRESS': 'fallback@test.com',
+                'EMAIL_PASSWORD': 'fallback_password',
+                'REPORT_EMAIL': ['report@test.com']
+            }
+            return fallback_values.get(attr, default)
         
         mock_getattr.side_effect = getattr_side_effect
         

@@ -1,6 +1,5 @@
 import pytest
 import datetime
-import base64
 from unittest.mock import Mock, patch, MagicMock
 from src.bathroom_reporter import BathroomReporter
 from src.models.bathroom_visit import BathroomVisit
@@ -96,57 +95,6 @@ class TestBathroomReporter:
         assert 14 in report_data['hourly_distribution']
         assert report_data['hourly_distribution'][14] == 1
 
-    @patch('src.bathroom_reporter.plt')
-    def test_create_charts_empty_data(self, mock_plt, reporter):
-        """Test chart creation with no data."""
-        report_data = {
-            'total_visits': 0,
-            'visits': []
-        }
-        
-        result = reporter.create_charts(report_data)
-        assert result == ""
-        mock_plt.subplots.assert_not_called()
-
-    @patch('src.bathroom_reporter.plt')
-    @patch('src.bathroom_reporter.base64')
-    @patch('src.bathroom_reporter.BytesIO')
-    def test_create_charts_with_data(self, mock_bytesio, mock_base64, mock_plt, reporter, sample_visits):
-        """Test chart creation with visit data."""
-        # Setup mocks
-        mock_fig = Mock()
-        mock_axes = [[Mock(), Mock()], [Mock(), Mock()]]
-        mock_plt.subplots.return_value = (mock_fig, mock_axes)
-        
-        # Mock the bar chart return value properly - it should be iterable
-        mock_bars = [Mock(), Mock(), Mock()]  # Mock bars for iteration
-        mock_axes[0][0].bar.return_value = mock_bars
-        
-        mock_buffer = Mock()
-        mock_bytesio.return_value = mock_buffer
-        mock_buffer.getvalue.return_value = b'fake_image_data'
-        mock_base64.b64encode.return_value = b'encoded_data'
-        
-        report_data = {
-            'total_visits': 3,
-            'avg_duration': 360,
-            'total_time': 1080,
-            'hourly_distribution': {2: 1, 4: 1, 6: 1},
-            'longest_visit': sample_visits[2],
-            'shortest_visit': sample_visits[0],
-            'visits': sample_visits
-        }
-        
-        result = reporter.create_charts(report_data)
-        
-        # Verify chart creation was called
-        mock_plt.subplots.assert_called_once_with(2, 2, figsize=(16, 12))
-        mock_fig.suptitle.assert_called_once()
-        
-        # Verify image encoding
-        mock_base64.b64encode.assert_called_once()
-        assert result == 'encoded_data'
-
     def test_create_html_email_structure(self, reporter, sample_visits):
         """Test HTML email structure and content."""
         report_data = {
@@ -159,10 +107,9 @@ class TestBathroomReporter:
             'visits': sample_visits
         }
         
-        chart_image = 'fake_base64_data'
         report_date = datetime.date(2025, 8, 14)
         
-        html = reporter.create_html_email(report_data, chart_image, report_date)
+        html = reporter.create_html_email(report_data, report_date)
         
         # Check basic HTML structure
         assert '<!DOCTYPE html>' in html
@@ -170,99 +117,15 @@ class TestBathroomReporter:
         assert '</html>' in html
         
         # Check content elements
-        assert 'Bathroom Visit Report' in html
+        assert 'Bathroom Visits' in html
         assert 'August 14, 2025' in html
-        assert '3</div>' in html  # Total visits
-        assert '6.0</div>' in html  # Avg duration (360/60 = 6.0 minutes)
-        assert '18</div>' in html   # Total time (1080/60 = 18 minutes)
-        
-        # Check chart embedding
-        assert f'data:image/png;base64,{chart_image}' in html
+        assert 'Total Visits: 3' in html  # Total visits in summary
+        assert '5.0 min' in html  # Individual visit durations
+        assert '6.0 min' in html
+        assert '7.0 min' in html
         
         # Check PST references
         assert 'PST' in html
-
-    def test_create_html_email_health_status(self, reporter):
-        """Test health status determination in email."""
-        test_cases = [
-            (6, 'Excellent', '#28a745'),
-            (4, 'Good', '#ffc107'),
-            (2, 'Fair', '#fd7e14'),
-            (1, 'Concerning', '#dc3545')
-        ]
-        
-        for visit_count, expected_status, expected_color in test_cases:
-            visits = []
-            for i in range(visit_count):
-                visits.append(BathroomVisit(
-                    device_id='test',
-                    visit_start=pst_from_naive(datetime.datetime(2025, 8, 14, 2, 0)),
-                    visit_end=pst_from_naive(datetime.datetime(2025, 8, 14, 2, 5)),
-                    event_count=2,
-                    duration_seconds=300
-                ))
-            
-            report_data = reporter.generate_report(visits, datetime.date(2025, 8, 14))
-            html = reporter.create_html_email(report_data, '', datetime.date(2025, 8, 14))
-            
-            assert expected_status in html
-            assert expected_color in html
-
-    def test_generate_recommendations_low_visits(self, reporter):
-        """Test recommendations for low visit frequency."""
-        report_data = {
-            'total_visits': 1,
-            'avg_duration': 300,
-            'hourly_distribution': {}
-        }
-        
-        recommendations = reporter._generate_recommendations(report_data)
-        
-        assert 'Low visit frequency' in recommendations
-        assert 'increasing fluid intake' in recommendations
-
-    def test_generate_recommendations_high_visits(self, reporter):
-        """Test recommendations for high visit frequency."""
-        report_data = {
-            'total_visits': 10,
-            'avg_duration': 300,
-            'hourly_distribution': {}
-        }
-        
-        recommendations = reporter._generate_recommendations(report_data)
-        
-        assert 'High visit frequency' in recommendations
-        assert 'overhydration' in recommendations
-
-    def test_generate_recommendations_long_duration(self, reporter):
-        """Test recommendations for long visit duration."""
-        report_data = {
-            'total_visits': 5,
-            'avg_duration': 720,  # 12 minutes
-            'hourly_distribution': {}
-        }
-        
-        recommendations = reporter._generate_recommendations(report_data)
-        
-        assert 'Extended visit duration' in recommendations
-        assert 'digestive issues' in recommendations
-
-    def test_generate_recommendations_peak_times(self, reporter):
-        """Test recommendations based on peak hours."""
-        test_cases = [
-            ({1: 3}, 'Early night pattern'),
-            ({7: 3}, 'Early morning pattern')
-        ]
-        
-        for hourly_dist, expected_pattern in test_cases:
-            report_data = {
-                'total_visits': 3,
-                'avg_duration': 300,
-                'hourly_distribution': hourly_dist
-            }
-            
-            recommendations = reporter._generate_recommendations(report_data)
-            assert expected_pattern in recommendations
 
     @patch('src.bathroom_reporter.smtplib.SMTP')
     def test_send_report_success(self, mock_smtp, reporter, sample_visits):
@@ -273,8 +136,7 @@ class TestBathroomReporter:
         
         report_data = reporter.generate_report(sample_visits, datetime.date(2025, 8, 14))
         
-        with patch.object(reporter, 'create_charts', return_value='fake_chart'):
-            result = reporter.send_report('recipient@test.com', report_data, datetime.date(2025, 8, 14))
+        result = reporter.send_report('recipient@test.com', report_data, datetime.date(2025, 8, 14))
         
         assert result is True
         mock_server.starttls.assert_called_once()
@@ -288,9 +150,7 @@ class TestBathroomReporter:
         mock_smtp.side_effect = Exception('SMTP Error')
         
         report_data = reporter.generate_report(sample_visits, datetime.date(2025, 8, 14))
-        
-        with patch.object(reporter, 'create_charts', return_value='fake_chart'):
-            result = reporter.send_report('recipient@test.com', report_data, datetime.date(2025, 8, 14))
+        result = reporter.send_report('recipient@test.com', report_data, datetime.date(2025, 8, 14))
         
         assert result is False
 
@@ -306,7 +166,7 @@ class TestBathroomReporter:
         )
         
         report_data = reporter.generate_report([visit], datetime.date(2025, 8, 14))
-        html = reporter.create_html_email(report_data, '', datetime.date(2025, 8, 14))
+        html = reporter.create_html_email(report_data, datetime.date(2025, 8, 14))
         
         # Verify the content is safe (device_id shouldn't appear as raw HTML)
         assert '<script>' not in html
@@ -323,7 +183,7 @@ class TestBathroomReporter:
             'visits': []
         }
         
-        html = reporter.create_html_email(report_data, '', datetime.date(2025, 8, 14))
+        html = reporter.create_html_email(report_data, datetime.date(2025, 8, 14))
         
         assert 'Pacific Standard Time' in html
         assert 'PST/PDT' in html
