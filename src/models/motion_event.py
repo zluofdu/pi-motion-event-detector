@@ -8,5 +8,5 @@ class MotionEvent(Base):
     __tablename__ = 'motion_events'
     id = Column(Integer, primary_key=True)
     device_id = Column(String, nullable=False)  # Identifier for the motion detector device
-    start_timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    start_timestamp = Column(DateTime)  # Will be set explicitly in PST by motion detector
     stop_timestamp = Column(DateTime)

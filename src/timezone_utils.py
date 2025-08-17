@@ -14,9 +14,8 @@ def now_pst() -> datetime.datetime:
 def to_pst(dt: datetime.datetime) -> datetime.datetime:
     """Convert a datetime to PST/PDT timezone."""
     if dt.tzinfo is None:
-        # Assume naive datetime is in system timezone, convert to PST
-        system_tz = pytz.timezone('UTC')  # or get system timezone
-        dt = system_tz.localize(dt)
+        # Assume naive datetime is already in PST (since our app stores PST times)
+        return PST.localize(dt)
     return dt.astimezone(PST)
 
 def pst_from_naive(dt: datetime.datetime) -> datetime.datetime:
